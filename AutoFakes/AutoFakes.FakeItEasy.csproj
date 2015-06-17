@@ -49,6 +49,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CreateItAttribute.cs" />
     <Compile Include="Internal\AutoFakeAttributeBase.cs" />
     <Compile Include="AutoFakeItEasyAttribute.cs" />
     <Compile Include="FakeItAttribute.cs" />

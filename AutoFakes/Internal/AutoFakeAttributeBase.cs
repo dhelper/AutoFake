@@ -10,13 +10,14 @@ namespace AutoFakes.FakeItEasy.Internal
     public abstract class AutoFakeAttributeBase : Attribute, ITestAction
     {
         private readonly IFakeHelper _fakeHelper;
+        private IEnumerable<FieldInfo> _fakeFields;
+        private IEnumerable<FieldInfo> _createFields;
 
         protected AutoFakeAttributeBase(IFakeHelper fakeHelper)
         {
             _fakeHelper = fakeHelper;
-        }
 
-        private IEnumerable<FieldInfo> _testFields;
+        }
 
         public void BeforeTest(TestDetails details)
         {
@@ -29,11 +30,22 @@ namespace AutoFakes.FakeItEasy.Internal
                 return;
             }
 
-            foreach (var testField in _testFields)
+            foreach (var fakeField in _fakeFields)
             {
-                var fakeObject = _fakeHelper.DynamicallyCreateFakeObject(testField.FieldType);
+                var fakeObject = _fakeHelper.DynamicallyCreateFakeObject(fakeField.FieldType);
 
-                testField.SetValue(details.Fixture, fakeObject);
+                fakeField.SetValue(details.Fixture, fakeObject);
+            }
+
+            foreach (var createField in _createFields)
+            {
+                var constructorInfo = createField.FieldType.GetConstructors().First();
+                var argumentsTypes = constructorInfo.GetParameters().Select(info => info.ParameterType);
+
+                var objects = argumentsTypes.Select(argumentsType => _fakeHelper.DynamicallyCreateFakeObject(argumentsType));
+
+                var instance = Activator.CreateInstance(createField.FieldType, objects.ToArray());
+                createField.SetValue(details.Fixture, instance);
             }
         }
 
@@ -43,9 +55,10 @@ namespace AutoFakes.FakeItEasy.Internal
 
         private void DiscoverFieldsToFake(TestDetails details)
         {
-            _testFields = details.Fixture.GetType()
-                .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(testField => testField.CustomAttributes.Any(data => data.AttributeType == typeof(FakeItAttribute)));
+            var allfields = details.Fixture.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            _fakeFields = allfields.Where(testField => testField.CustomAttributes.Any(data => data.AttributeType == typeof(FakeItAttribute)));
+            _createFields = allfields.Where(testField => testField.CustomAttributes.Any(data => data.AttributeType == typeof(CreateItAttribute)));
         }
 
         public ActionTargets Targets
